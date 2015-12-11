@@ -10,11 +10,9 @@ p.start(7.5)
 
 class String(object):
     """
-    String class. Object representation of a single string. Also calculates target frequency based on string number and sound name input.
+    String class. Object representation of a single string. Calculates target frequency based on string number and sound name input.
 
-    Initialise with:
-
-    string = String(string_number, sound)
+    (Will the naming collide with python string module?)
     """
     def __init__(self, string_number, sound):
         super(String, self).__init__()
@@ -37,38 +35,49 @@ class String(object):
         'frequencies of the notes with the same name in two neighboring octaves are different by 2.'
         'The typical (six string) guitar normally plays pitches of great through two-lined octaves. E2, A2, D3, G3, B3, and E4 where 2 = great, 3 = small, 4 = onelined, 5 = twolined'
         """
-        standard_pitch = [1, 1, 2, 2, 2, 4]  ## narazie na sztywno, nie mam jeszcze pomyslu jak to obejsc dla innych, nietypowych gitar
+        octaves = [1, 1, 2, 2, 2, 4]  ## narazie na sztywno, nie mam jeszcze pomyslu jak to obejsc dla innych, nietypowych gitar
         matching_index = next(sounds.index(elem) for elem in sounds if self.sound == elem)      
-        return great[matching_index] * standard_pitch[self.string_number - 1]
+        return great[matching_index] * octaves[self.string_number - 1]
 
     def _set_frequency(self):
         self.target_frequency = self._calculate_frequency()     
 
 class StringSet(object):
     """
-    StringSet creates an object that maps string 
+    StringSet builds string objects from user input (maps dictionary from GUI to objects). Provides several helper methods, I don't really know what for yet. 
     """
     def __init__(self, string_sound_dict):
         super(StringSet, self).__init__()
         # string_sound_list: __dict__, string_number: 'sound'
         self.string_sound_dict = string_sound_dict
-        self.instantiate_strings()
-
-    def instantiate_strings(self):
         self.string_objects = []
+        self._instantiate_strings()
 
+    def _instantiate_strings(self):
         for key, value in self.string_sound_dict.items():
             self.string_objects.append(String(key, value))
+
+    def get_string_objects(self):
+        """
+        Just for clarity.
+        """
+        return self.string_objects
+
+    def get_target_frequencies(self):
+        frequencies = {}
+        for obj in self.string_objects:
+            frequencies[obj.string_number] = (obj.sound, obj.target_frequency)
+        return frequencies
 
 class TuningHandler(object):
     """docstring for TuningHandler"""
     def __init__(self, string_set):
         super(TuningHandler, self).__init__()
-        self.string_set = string_set
+        self.string_set = string_set.get_string_objects()
     
     def tune_all(self):
         """
-        Tu w zamysle bedzie algorytm strojenia wszystkich strun po kolei, jedna petla, na koncu wywolanie check_tuned, i dostrajanie pojedynczo poprzez tune_one. Taki jest zamysl, pewnie sie zmieni.
+        Tu w zamysle bedzie algorytm strojenia wszystkich strun po kolei, algorytm strojenia jednej struny w tune_one -> tune_all bedzie iterowalo po objektach i wywolywalo tune_one z odpowiednimi danymi.
         """
         frequency_detector = frequency.Frequency()
         q = Queue()
@@ -78,11 +87,8 @@ class TuningHandler(object):
         while True:
             freq = q.get()
             print freq
-            duty = round(self.map(freq, 70, 360, 4.0, 11.0), 1)
-            self.servo_update(duty)
-
-    def map(self, x, in_min, in_max, out_min, out_max):
-        return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+            duty = round(self._map_values(freq, 70, 360, 4.0, 11.0), 1)
+            self._servo_update(duty)
 
     def tune_one(self, string_number):
         pass
@@ -93,7 +99,10 @@ class TuningHandler(object):
     def check_one_tuned(self, string_number):
         pass
 
-    def servo_update(self, duty):
+    def _map_values(self, x, in_min, in_max, out_min, out_max):
+        return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
+
+    def _servo_update(self, duty):
         try:
             if duty >= 4 and duty <= 11.0:
                 print duty
@@ -109,9 +118,6 @@ if __name__ == "__main__":
     string_dict = {0: 'E', 1: 'A', 2: 'D', 3: 'F#'}
 
     string_set = StringSet(string_dict)
-
-    # for string in t.string_objects:
-    #   print string.target_frequency, string.sound
 
     t = TuningHandler(string_set)
 
