@@ -1,12 +1,16 @@
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, Manager, Value
+import numpy as np
 import RPi.GPIO as GPIO
-
+import sys
 import frequency
+import pid
+import time
+
 
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(18, GPIO.OUT)
-p = GPIO.PWM(18, 50)
-p.start(7.5)
+servo = GPIO.PWM(18, 50)
+servo.start(7.5)
 
 class String(object):
     """
@@ -37,7 +41,7 @@ class String(object):
         """
         octaves = [1, 1, 2, 2, 2, 4]  ## narazie na sztywno, nie mam jeszcze pomyslu jak to obejsc dla innych, nietypowych gitar
         matching_index = next(sounds.index(elem) for elem in sounds if self.sound == elem)      
-        return great[matching_index] * octaves[self.string_number - 1]
+        return great[matching_index] * octaves[self.string_number]
 
     def _set_frequency(self):
         self.target_frequency = self._calculate_frequency()     
@@ -46,10 +50,14 @@ class StringSet(object):
     """
     StringSet builds string objects from user input (maps dictionary from GUI to objects). Provides several helper methods, I don't really know what for yet. 
     """
-    def __init__(self, string_sound_dict):
+    def __init__(self, string_sound_dict=None):
         super(StringSet, self).__init__()
         # string_sound_list: __dict__, string_number: 'sound'
-        self.string_sound_dict = string_sound_dict
+        if string_sound_dict != None:
+            self.string_sound_dict = string_sound_dict
+        else:
+            self.string_sound_dict = self.default_tuning()
+
         self.string_objects = []
         self._instantiate_strings()
 
@@ -63,41 +71,93 @@ class StringSet(object):
         """
         return self.string_objects
 
+    def get_string_sounds(self):
+        return self.string_sound_dict
+
     def get_target_frequencies(self):
         frequencies = {}
         for obj in self.string_objects:
             frequencies[obj.string_number] = (obj.sound, obj.target_frequency)
         return frequencies
 
+    def default_tuning(self):
+        default_tuning_dict = {0: 'D#', 1: 'G#', 2: 'C#', 3: 'F#', 4: 'A#', 5: 'D#'}
+        return default_tuning_dict
+
 class TuningHandler(object):
     """docstring for TuningHandler"""
     def __init__(self, string_set):
         super(TuningHandler, self).__init__()
-        self.string_set = string_set.get_string_objects()
-    
-    def tune_all(self):
-        """
-        Tu w zamysle bedzie algorytm strojenia wszystkich strun po kolei, algorytm strojenia jednej struny w tune_one -> tune_all bedzie iterowalo po objektach i wywolywalo tune_one z odpowiednimi danymi.
-        """
-        frequency_detector = frequency.Frequency()
-        q = Queue()
-        self.frequency_detector_process = Process(target = frequency_detector.measure, args=(q,))
+        self.string_set = string_set
+
+        manager = Manager()
+        self.queue = manager.list()
+        self.average_value = Value('f', 0)
+        self.values_correct_flag = Value('I', 0)
+       
+        self.pid_controller=pid.PID(2.0, 0.0, 0.8)    
+
+    def start_process(self):
+        self.frequency_detector = frequency.Frequency()
+        self.frequency_detector_process = Process(target = self.frequency_detector.measure, args=(self.queue, self.values_correct_flag, self.average_value))
         self.frequency_detector_process.start()
 
-        while True:
-            freq = q.get()
-            print freq
-            duty = round(self._map_values(freq, 70, 360, 4.0, 11.0), 1)
-            self._servo_update(duty)
+    def stop_process(self):
+        self.frequency_detector_process.terminate()
+        self.frequency_detector_process.join()
+        self.frequency_detector.recorder.close()
+        del self.frequency_detector
+
+    def tune_all(self):
+        pass
 
     def tune_one(self, string_number):
-        pass
+
+        target_frequencies = self.string_set.get_target_frequencies()
+        string_target_frequency = target_frequencies[string_number][1]
+
+        self.start_process()
+
+        while True:
+
+            self.pid_controller.setPoint(string_target_frequency)
+
+            if self.values_correct_flag.value == 1:
+
+                freq = self.queue[-1]
+                pid_value = self.pid_controller.update(freq)
+                # print "Pid output: %s" % pid_value
+                if round(pid_value, 1) > 1:
+                    duty = round(self._map_values(pid_value, 1, 30, 6.7, 4.0), 1)
+                elif round(pid_value, 1) < -1:
+                    duty = round(self._map_values(pid_value, -30, -1, 10.0, 7.7), 1)
+                # elif round(pid_value, 1) in range(-1,1):
+                else:
+                    duty = 7.5
+                # print "duty: %s" % duty
+                self._servo_update(duty)
+                string_tuned = self.check_one_tuned(string_number)
+
+                if string_tuned == True:
+                    self._servo_update(7.5)          
+                    break
+                else:
+                    continue
+            else:
+                self._servo_update(7.5)
+
+        self.stop_process()
 
     def check_tuned(self):
         pass
 
     def check_one_tuned(self, string_number):
-        pass
+        target_frequencies = self.string_set.get_target_frequencies()
+        string_target_frequency = target_frequencies[string_number][1]
+
+        if string_target_frequency - 0.5 <= self.average_value.value <= string_target_frequency + 0.5:
+            self.average_value.value = 0
+            return True
 
     def _map_values(self, x, in_min, in_max, out_min, out_max):
         return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
@@ -105,24 +165,10 @@ class TuningHandler(object):
     def _servo_update(self, duty):
         try:
             if duty >= 4 and duty <= 11.0:
-                print duty
-                p.ChangeDutyCycle(duty)
+                servo.ChangeDutyCycle(duty)
             else:
-                p.ChangeDutyCycle(7.5)
+                servo.ChangeDutyCycle(7.5)
                 print "Servo stop"
         except:
             pass
 
-if __name__ == "__main__":
-
-    string_dict = {0: 'E', 1: 'A', 2: 'D', 3: 'F#'}
-
-    string_set = StringSet(string_dict)
-
-    t = TuningHandler(string_set)
-
-    try:
-        t.tune_all()
-    except KeyboardInterrupt:
-        GPIO.cleanup()
-        t.frequency_detector_process.terminate()
