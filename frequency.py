@@ -7,7 +7,7 @@ np.set_printoptions(threshold='nan')
 
 # to calkiem dziala, czasem daje wartosc odpowiednia, potem duzo noisu i harmonicsow.
 import alsaaudio, struct
-from aubio.task import *
+# from aubio.task import *
 
 class Frequency(object):
     """docstring for Frequency"""
@@ -19,8 +19,8 @@ class Frequency(object):
         self.INFORMAT    = alsaaudio.PCM_FORMAT_S16_LE
         self.RATE        = 44100
         self.FRAMESIZE   = 2048
-        self.PITCHALG    = aubio_pitch_yin
-        self.PITCHOUT    = aubio_pitchm_freq
+        # self.PITCHALG    = aubio_pitch_yin
+        # self.PITCHOUT    = aubio_pitchm_freq
         self.CARD = 1
 
         # set up audio input
@@ -90,7 +90,7 @@ class Frequency(object):
                 px, py = self.parabolic(corr, peak)
                 freq = self.RATE/px
                 self.append_to_queue(freq, queue, values_correct_flag, average_value)
-
+                print freq
             except (IndexError, ValueError):
                 pass
                 

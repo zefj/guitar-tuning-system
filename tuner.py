@@ -95,7 +95,7 @@ class TuningHandler(object):
         self.average_value = Value('f', 0)
         self.values_correct_flag = Value('I', 0)
        
-        self.pid_controller=pid.PID(2.0, 0.0, 0.8)    
+        self.pid_controller=pid.PID(2.0, 0.0, 0.8)
 
     def start_process(self):
         self.frequency_detector = frequency.Frequency()
@@ -123,20 +123,23 @@ class TuningHandler(object):
             self.pid_controller.setPoint(string_target_frequency)
 
             if self.values_correct_flag.value == 1:
-
+                # start = time.clock()
+                # print "Start: %s" % start
+                
                 freq = self.queue[-1]
                 pid_value = self.pid_controller.update(freq)
-                # print "Pid output: %s" % pid_value
                 if round(pid_value, 1) > 1:
                     duty = round(self._map_values(pid_value, 1, 30, 6.7, 4.0), 1)
                 elif round(pid_value, 1) < -1:
-                    duty = round(self._map_values(pid_value, -30, -1, 10.0, 7.7), 1)
-                # elif round(pid_value, 1) in range(-1,1):
+                    duty = round(self._map_values(pid_value, -30, -1, 9.8, 7.7), 1)
                 else:
                     duty = 7.5
-                # print "duty: %s" % duty
                 self._servo_update(duty)
                 string_tuned = self.check_one_tuned(string_number)
+
+                # end = time.clock()
+                # print "End: %s" % end
+                # print "Eval: %s" % (end-start)   
 
                 if string_tuned == True:
                     self._servo_update(7.5)          
@@ -155,7 +158,7 @@ class TuningHandler(object):
         target_frequencies = self.string_set.get_target_frequencies()
         string_target_frequency = target_frequencies[string_number][1]
 
-        if string_target_frequency - 0.5 <= self.average_value.value <= string_target_frequency + 0.5:
+        if string_target_frequency - 0.2 <= self.average_value.value <= string_target_frequency + 0.2:
             self.average_value.value = 0
             return True
 
