@@ -5,6 +5,10 @@ from pgu import gui
 from evdev import InputDevice, categorize, ecodes
 import time
 
+#from multiprocessing import Process
+import threading
+import tuner
+
 os.environ["SDL_FBDEV"] = "/dev/fb1"
 dev = InputDevice('/dev/input/event1')
 
@@ -40,8 +44,14 @@ class GUIApp(gui.Desktop):
             if not (e.type == QUIT and self.mywindow):
                 self.event(e)
 
+        # e = pygame.event.poll()
+        # if not (e.type == QUIT and self.mywindow):
+        #     self.event(e)   
+
         rects = self.update(self.screen)
         pygame.display.update(rects)
+
+### Generic buttons ###
 
 class Tune(gui.Button):
     def __init__(self,**params):
@@ -63,7 +73,7 @@ class Back(gui.Button):
         params['value'] = 'Back'
         gui.Button.__init__(self,**params)
 
-### Tune screen button ###
+### Tuning screens buttons ###
 
 class TuneOne(gui.Button):
     def __init__(self,**params):
@@ -83,93 +93,129 @@ class StringButton(gui.Button):
 
 class DrawGUI:
     def __init__(self):
+
         self.container = gui.Container(width=480, height=320)
         self.mainscreencontainer = gui.Container(width=480, height=320)
         self.tunescreencontainer = gui.Container(width=480, height=320)
         self.optionscontainer = gui.Container(width=480, height=320)
+        self.tuneonecontainer = gui.Container(width=480, height=320)
         self.set_background("/home/pi/Dyplom/guitar-tuning-system/bg.jpg")
-        self.initialise_buttons()
 
+        self.init_screens()
+        
+        self.container.add(self.mainscreencontainer, 0, 0)
 
-    def set_background(self, path):
-        img = gui.Image(path)
-        self.container.add(img, 0, 0)
-        self.mainscreencontainer.add(img, 0, 0)
-        #self.tunescreencontainer.add(img, 0, 0)
-        self.optionscontainer.add(img, 0, 0)
+    def init_screens(self):
+        self.main_screen_init()
+        self.tune_screen_init()
+        self.options_screen_init()        
+        self.tune_one_screen_init()
 
-    def initialise_buttons(self):
-        """
-        Initialise and connect all generic buttons here.
-        """
-        self.quit_button = Quit(width=100, height=100)
-        self.quit_button.connect(gui.CLICK, app.quit, None)
-
+    def main_screen_init(self):
         self.options_button = Options(width=150, height=100)
-        self.options_button.connect(gui.CLICK, self.draw_options)
-
-        self.back_button = Back(width=50, height=50)
-        self.back_button.connect(gui.CLICK, self.back, 'tune')
-
-        self.back_button_opt = Back(width=50, height=50)
-        self.back_button_opt.connect(gui.CLICK, self.back, 'opt')
-
+        self.options_button.connect(gui.CLICK, self.draw_options)        
+        
         self.tune_button = Tune(width=150, height=100)
         self.tune_button.connect(gui.CLICK, self.draw_tunescreen)
-
+        
+        self.mainscreencontainer.add(self.tune_button, 70, 110)        
+        self.mainscreencontainer.add(self.options_button, 250, 110)
+        
+    def tune_screen_init(self):     
         self.tune_one_button = TuneOne(width=150, height=100)
         self.tune_one_button.connect(gui.CLICK, self.draw_tuneone)
 
         self.tune_all_button = TuneAll(width=150, height=100)
-        self.tune_all_button.connect(gui.CLICK, self.draw_tuneall)     
+        self.tune_all_button.connect(gui.CLICK, self.draw_tuneall)
 
-        self.mainscreencontainer.add(self.tune_button, 70, 110)        
-        self.mainscreencontainer.add(self.options_button, 250, 110)   
+        self.back_button_tune = Back(width=50, height=50)
+        self.back_button_tune.connect(gui.CLICK, self.back, 't')        
 
         self.tunescreencontainer.add(self.tune_one_button, 70, 110)
         self.tunescreencontainer.add(self.tune_all_button, 250, 110)
-        self.tunescreencontainer.add(self.back_button, 30, 240)
+        self.tunescreencontainer.add(self.back_button_tune, 30, 240)    
+
+    def tune_one_screen_init(self):
+        self.string_buttons = {}
+        offset_y = 0
+        string_names = ['E', 'A', 'D', 'G', 'B', 'E']
+
+        self.quit_button = Quit(width=100, height=100)
+        self.quit_button.connect(gui.CLICK, app.quit, None)
+        self.tuneonecontainer.add(self.quit_button, 200, 200)
+
+        for i in range(0,6):
+            self.string_buttons[i] = StringButton(width=50, height=42, value=string_names[i])
+            self.tuneonecontainer.add(self.string_buttons[i], 10, 10+offset_y)
+            self.string_buttons[i].connect(gui.CLICK, self.tune_one, i)
+            offset_y += 52
+
+    def options_screen_init(self):
+        self.back_button_opt = Back(width=50, height=50)
+        self.back_button_opt.connect(gui.CLICK, self.back, 'o')
+
+        self.options_button = Options(width=150, height=100)
+        self.options_button.connect(gui.CLICK, self.draw_options)
 
         self.optionscontainer.add(self.back_button_opt, 30, 240)
 
-        self.container.add(self.mainscreencontainer, 0, 0)
+    def set_background(self, path):
+        img = gui.Image(path)
+        self.container.add(img, 0, 0)
 
     def draw_options(self):
         self.container.remove(self.mainscreencontainer)
         self.container.add(self.optionscontainer, 0, 0)
-        time.sleep(1)
-        self.container.reupdate()
 
-    def back(self, screen):
-        print "in back"
-        if screen == 'tune':
-            print 'tune'
-            self.container.remove(self.tunescreencontainer)
-            self.container.add(self.mainscreencontainer, 0, 0)
-        elif screen == 'opt':
-            print 'opt'
-            self.container.remove(self.optionscontainer)
-            self.container.add(self.mainscreencontainer, 0, 0)
-
-        time.sleep(1)
         self.container.reupdate()
 
     def draw_tunescreen(self):
         self.container.remove(self.mainscreencontainer)
         self.container.add(self.tunescreencontainer, 0, 0)
-        time.sleep(1)
+
+        self.container.reupdate()
+
+    def back(self, screen):
+        if screen == 't':
+            self.container.remove(self.tunescreencontainer)
+            self.container.add(self.mainscreencontainer, 0, 0)
+        elif screen == 'o':
+            self.container.remove(self.optionscontainer)
+            self.container.add(self.mainscreencontainer, 0, 0)
+
         self.container.reupdate()
 
     def draw_tuneall(self):
         pass
 
     def draw_tuneone(self):
-        pass
+        self.container.remove(self.tunescreencontainer)
+        self.container.add(self.tuneonecontainer, 0, 0)
+
+        self.container.reupdate()
+
+    def tune_one(self, string_number):
+        self.tuner_thread = threading.Thread(target=self.run_thread, args=(string_number,)).start()
+
+    def run_thread(self, string_number):
+        import tuner
+        string_set = tuner.StringSet()
+        self.tun = tuner.TuningHandler(string_set)
+        self.tun.add_observer(self)
+        self.tun.start(string_number)
+
+
+    def string_tuned(self, string_number):
+        print "hehhehehehhhhAJKSDHAKJSHDJK"
+        self.tun.del_observer(self)
+        self.tun.stop()
+        print "String number %s tuned!" % string_number
 
 if __name__ == "__main__":
 
-    app = GUIApp(background=(255,255,255))
-
-    dgui = DrawGUI()
-
-    app.run(dgui.container)
+    app = GUIApp()
+    draw_gui = DrawGUI()
+    try:
+        app.run(draw_gui.container)
+    except KeyboardInterrupt:
+        app.quit()

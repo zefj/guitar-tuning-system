@@ -6,11 +6,9 @@ import frequency
 import pid
 import time
 
+import threading
 
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(18, GPIO.OUT)
-servo = GPIO.PWM(18, 50)
-servo.start(7.5)
+
 
 class String(object):
     """
@@ -89,36 +87,71 @@ class TuningHandler(object):
     def __init__(self, string_set):
         super(TuningHandler, self).__init__()
         self.string_set = string_set
+        self.stopped = True
 
         manager = Manager()
         self.queue = manager.list()
         self.average_value = Value('f', 0)
         self.values_correct_flag = Value('I', 0)
-       
+        self.run_loop = Value('I', 1)
+
+        self.observers = []
+
         self.pid_controller=pid.PID(2.0, 0.0, 0.8)
+
+    def stop(self):
+        self.stopped = True
+        self.stop_process()
+
+    def start(self, string_number):
+        self.stopped = False
+        self.tune_one(string_number)
+        GPIO.cleanup()
+
+    def add_observer(self, observer):
+        self.observers.append(observer)
+        print "added observer %s" % observer
+
+    def del_observer(self, observer):
+        self.observers.remove(observer)
+        print "removed observer %s" % observer
+
+    def notify_string_tuned(self, string_number):
+        for obs in self.observers:
+            obs.string_tuned(string_number)
 
     def start_process(self):
         self.frequency_detector = frequency.Frequency()
-        self.frequency_detector_process = Process(target = self.frequency_detector.measure, args=(self.queue, self.values_correct_flag, self.average_value))
+        self.frequency_detector_process = Process(target = self.frequency_detector.measure, args=(self.queue, self.values_correct_flag, self.average_value, self.run_loop))
         self.frequency_detector_process.start()
 
     def stop_process(self):
+        self.run_loop.value = 0
         self.frequency_detector_process.terminate()
-        self.frequency_detector_process.join()
+        
+        if self.frequency_detector_process.is_alive():
+            self.frequency_detector_process.join()
+        
         self.frequency_detector.recorder.close()
-        del self.frequency_detector
+
+        print "stopped process"
 
     def tune_all(self):
         pass
 
     def tune_one(self, string_number):
 
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(18, GPIO.OUT)
+        self.servo = GPIO.PWM(18, 50)
+        self.servo.start(7.5)
+
         target_frequencies = self.string_set.get_target_frequencies()
         string_target_frequency = target_frequencies[string_number][1]
 
         self.start_process()
-
-        while True:
+        print "started process"
+        while self.stopped == False:
 
             self.pid_controller.setPoint(string_target_frequency)
 
@@ -127,6 +160,7 @@ class TuningHandler(object):
                 # print "Start: %s" % start
                 
                 freq = self.queue[-1]
+                #print freq
                 pid_value = self.pid_controller.update(freq)
                 if round(pid_value, 1) > 1:
                     duty = round(self._map_values(pid_value, 1, 30, 6.7, 4.0), 1)
@@ -134,6 +168,7 @@ class TuningHandler(object):
                     duty = round(self._map_values(pid_value, -30, -1, 9.8, 7.7), 1)
                 else:
                     duty = 7.5
+                
                 self._servo_update(duty)
                 string_tuned = self.check_one_tuned(string_number)
 
@@ -142,14 +177,15 @@ class TuningHandler(object):
                 # print "Eval: %s" % (end-start)   
 
                 if string_tuned == True:
-                    self._servo_update(7.5)          
+                    self.notify_string_tuned(string_number)
+                    self._servo_update(7.5)  
                     break
                 else:
                     continue
             else:
                 self._servo_update(7.5)
 
-        self.stop_process()
+        return
 
     def check_tuned(self):
         pass
@@ -160,18 +196,19 @@ class TuningHandler(object):
 
         if string_target_frequency - 0.2 <= self.average_value.value <= string_target_frequency + 0.2:
             self.average_value.value = 0
+
             return True
 
     def _map_values(self, x, in_min, in_max, out_min, out_max):
         return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
 
     def _servo_update(self, duty):
+        #print "duty = %s" % duty
         try:
             if duty >= 4 and duty <= 11.0:
-                servo.ChangeDutyCycle(duty)
+                self.servo.ChangeDutyCycle(duty)
             else:
-                servo.ChangeDutyCycle(7.5)
-                print "Servo stop"
+                self.servo.ChangeDutyCycle(7.5)
         except:
             pass
 

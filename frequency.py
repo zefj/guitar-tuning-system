@@ -5,6 +5,8 @@ import analyse
 from scipy.signal import blackmanharris, fftconvolve
 np.set_printoptions(threshold='nan')
 
+
+
 # to calkiem dziala, czasem daje wartosc odpowiednia, potem duzo noisu i harmonicsow.
 import alsaaudio, struct
 # from aubio.task import *
@@ -13,7 +15,6 @@ class Frequency(object):
     """docstring for Frequency"""
     def __init__(self):
         super(Frequency, self).__init__()
-
         # constants
         self.CHANNELS    = 1
         self.INFORMAT    = alsaaudio.PCM_FORMAT_S16_LE
@@ -44,6 +45,7 @@ class Frequency(object):
         """
         Hacky implementation of limited length list.
         """
+        #print "append_to_q"
         if len(queue) > 9:
             queue.pop(0)
             queue.append(freq)
@@ -51,11 +53,12 @@ class Frequency(object):
         else:
             values_correct_flag.value = 0
             queue.append(freq)
-            
+
     def validate_values(self, queue, values_correct_flag, average_value):
         """
         Value validation based on two criterion: standard deviation of last 10 values and maximum expected frequency. Sets a shared flag for tuning handler. 
         """
+        #print "validate"
         standard_deviation = np.std(queue)
 
         if standard_deviation < 3 and max(queue) < 600:
@@ -67,10 +70,12 @@ class Frequency(object):
     def calculate_average(self, queue, average_value):
         average_value.value = sum(queue)/len(queue)
 
-    def measure(self, queue, values_correct_flag, average_value):
+    def measure(self, queue, values_correct_flag, average_value, run_loop):
 
-        while True:
+        while run_loop.value == 1:
             try:
+
+
                 start_time = time.clock()
                 #print "Start: %s" % start_time
 
@@ -93,16 +98,17 @@ class Frequency(object):
                 px, py = self.parabolic(corr, peak)
                 freq = self.RATE/px
                 self.append_to_queue(freq, queue, values_correct_flag, average_value)
-                print freq
+                #print freq
 
                 end_time = time.clock()
                 #print "End: %s" % end_time
-                print "Eval: %s" % (end_time-start_time) 
+                #print "Eval: %s" % (end_time-start_time) 
 
             except (IndexError, ValueError):
                 pass
                 
-            except (KeyboardInterrupt, SystemExit):
-                self.recorder.close()
+            # except (KeyboardInterrupt, SystemExit):
+            #     #self.recorder.close()
+            #     break
 
 
