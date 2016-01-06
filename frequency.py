@@ -8,7 +8,7 @@ np.set_printoptions(threshold='nan')
 # to calkiem dziala, czasem daje wartosc odpowiednia, potem duzo noisu i harmonicsow.
 import alsaaudio, struct
 # from aubio.task import *
-
+import time
 class Frequency(object):
     """docstring for Frequency"""
     def __init__(self):
@@ -71,6 +71,9 @@ class Frequency(object):
 
         while True:
             try:
+                start_time = time.clock()
+                #print "Start: %s" % start_time
+
                 [length, data] = self.recorder.read()
                 signal = np.fromstring(data, dtype=np.int16)
 
@@ -91,6 +94,11 @@ class Frequency(object):
                 freq = self.RATE/px
                 self.append_to_queue(freq, queue, values_correct_flag, average_value)
                 print freq
+
+                end_time = time.clock()
+                #print "End: %s" % end_time
+                print "Eval: %s" % (end_time-start_time) 
+
             except (IndexError, ValueError):
                 pass
                 
