@@ -89,9 +89,11 @@ class TuningHandler(object):
         self.stopped = True
         self.frequency_detector = frequency.Frequency()
 
+        self.previous_duty = 7.5
+
         self.observers = []
 
-        self.pid_controller=pid.PID(2.0, 0.0, 0.8)
+        self.pid_controller=pid.PID(1.0, 0.1, 0.5)
 
     def stop(self):
         self.stopped = True
@@ -121,70 +123,68 @@ class TuningHandler(object):
 
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(18, GPIO.OUT)
-        self.servo = GPIO.PWM(18, 100)
-        self.servo.start(15)
+        self.servo = GPIO.PWM(18, 50)
+        self.servo.start(7.5)
 
         target_frequencies = self.string_set.get_target_frequencies()
         string_target_frequency = target_frequencies[string_number][1]
 
         self.frequency_detector.queue = []
-       
+        self.pid_controller.setPoint(string_target_frequency)
         while self.stopped == False:
 
-            self.pid_controller.setPoint(string_target_frequency)
-
             current_freq, values_correct_flag, average_value = self.frequency_detector.measure()
-
+            #print current_freq, string_target_frequency, average_value
             if values_correct_flag == True and current_freq != None:
-
-                freq = current_freq
-                print freq
-
-                pid_value = self.pid_controller.update(freq)
-                if round(pid_value, 1) > 1:
-                    duty = round(self._map_values(pid_value, 1, 30, 14, 12), 1)
-                elif round(pid_value, 1) < -1:
-                    duty = round(self._map_values(pid_value, -30, -1, 16, 18), 1)
-                else:
-                    duty = 15
                 
-                self._servo_update(duty)
-    
+                #print "w ifie"
+                freq = current_freq
+
                 if average_value != None:
-                    string_tuned = self.check_one_tuned(string_number, average_value)
+                    string_tuned = self.check_one_tuned(string_number, freq)
 
                     if string_tuned == True:
                         self.notify_string_tuned(string_number)
-                        self._servo_update(15)  
+                        self._servo_update(7.5)  
                         break
-                    else:
-                        continue
-            else:
-                self._servo_update(15)
+       
 
-        self.stop_process()
-        return
+                pid_value = self.pid_controller.update(freq)
+                print pid_value
+                if round(pid_value, 1) > 0:
+                    duty = round(self._map_values(pid_value, 1, 60, 7.1, 5), 1)
+                elif round(pid_value, 1) < 0:
+                    duty = round(self._map_values(pid_value, -1, -60, 7.9, 9), 1)
+                else:
+                    #print 
+                    duty = 7.5
+                
+                self._servo_update(duty)
+    
+
+            else:
+                
+                self.pid_controller.setPoint(string_target_frequency)
+                self._servo_update(7.5)
 
     def check_tuned(self):
         pass
 
-    def check_one_tuned(self, string_number, average_value):
+    def check_one_tuned(self, string_number, freq):
         target_frequencies = self.string_set.get_target_frequencies()
         string_target_frequency = target_frequencies[string_number][1]
 
-        if string_target_frequency - 0.1 <= average_value <= string_target_frequency + 0.1:
+        if string_target_frequency - 0.1 <= freq <= string_target_frequency + 0.1:
             return True
+        else:
+            return False
 
     def _map_values(self, x, in_min, in_max, out_min, out_max):
         return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
 
     def _servo_update(self, duty):
         print "duty = %s" % duty
-        try:
-            if duty >= 9 and duty <= 21:
-                self.servo.ChangeDutyCycle(duty)
-            else:
-                self.servo.ChangeDutyCycle(15)
-        except:
-            pass
+       
+        self.servo.ChangeDutyCycle(duty)
+
 

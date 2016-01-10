@@ -34,7 +34,7 @@ class GUIApp(gui.Desktop):
 
     def loop(self):
         self.set_global_app()
-
+        pygame.event.pump()
         event = dev.read_one()
         if event and event.type == ecodes.EV_ABS:
             self.handle_pos(event.code, event.value)
@@ -193,19 +193,25 @@ class DrawGUI:
         self.container.reupdate()
 
     def tune_one(self, string_number):
-        self.tuner_thread = threading.Thread(target=self.run_thread, args=(string_number,)).start()
+        self.tuner_thread = threading.Thread(target=self.run_thread, args=(string_number,))
+        self.tuner_thread.daemon = True
+        self.tuner_thread.start()
 
     def run_thread(self, string_number):
         import tuner
+        #try:
         string_set = tuner.StringSet()
         self.tun = tuner.TuningHandler(string_set)
         self.tun.add_observer(self)
         self.tun.start(string_number)
-
+        # except (KeyboardInterrupt, SystemExit):
+        #     self.tun.stop()
+        #     print '\n! Received keyboard interrupt, quitting threads.\n'
 
     def string_tuned(self, string_number):
         self.tun.del_observer(self)
         self.tun.stop()
+        del self.tuner_thread
         print "String number %s tuned!" % string_number
 
 if __name__ == "__main__":

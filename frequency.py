@@ -5,12 +5,8 @@ import analyse
 from scipy.signal import blackmanharris, fftconvolve
 np.set_printoptions(threshold='nan')
 
-
-
-# to calkiem dziala, czasem daje wartosc odpowiednia, potem duzo noisu i harmonicsow.
 import alsaaudio, struct
-# from aubio.task import *
-import time
+
 class Frequency(object):
     """docstring for Frequency"""
     def __init__(self):
@@ -20,8 +16,6 @@ class Frequency(object):
         self.INFORMAT    = alsaaudio.PCM_FORMAT_S16_LE
         self.RATE        = 44100
         self.FRAMESIZE   = 2048
-        # self.PITCHALG    = aubio_pitch_yin
-        # self.PITCHOUT    = aubio_pitchm_freq
         self.CARD = 1
 
         # set up audio input
@@ -47,8 +41,7 @@ class Frequency(object):
         """
         Hacky implementation of limited length list.
         """
-        #print "append_to_q"
-        if len(self.queue) > 9:
+        if len(self.queue) > 7:
             self.queue.pop(0)
             self.queue.append(freq)
         else:
@@ -58,7 +51,6 @@ class Frequency(object):
         """
         Value validation based on two criterion: standard deviation of last 10 values and maximum expected frequency. Sets a shared flag for tuning handler. 
         """
-        #print "validate"
         standard_deviation = np.std(self.queue)
 
         if standard_deviation < 3 and max(self.queue) < 600:
@@ -71,11 +63,7 @@ class Frequency(object):
 
     def measure(self):
 
-        #while run_loop.value == 1:
         try:
-            #start_time = time.clock()
-            #print "Start: %s" % start_time
-
             [length, data] = self.recorder.read()
             signal = np.fromstring(data, dtype=np.int16)
 
@@ -85,7 +73,6 @@ class Frequency(object):
             # Find the first low point
             d = np.diff(corr)
 
-        
             start = self.find(d > 0)[0]
             # Find the next peak after the low point (other than 0 lag).  This bit is
             # not reliable for long signals, due to the desired peak occurring between
@@ -103,20 +90,8 @@ class Frequency(object):
 
             return freq, values_correct_flag, average_value
 
-            #self.append_to_queue(freq, queue, values_correct_flag, average_value)
-            #print freq
-
-            #end_time = time.clock()
-            #print "End: %s" % end_time
-            #print "Eval: %s" % (end_time-start_time) 
-
         except (IndexError, ValueError):
-            pass
+            return None, None, None
         
         except:
             self.recorder.close()
-            # except (KeyboardInterrupt, SystemExit):
-            #     #self.recorder.close()
-            #     break
-
-
