@@ -5,7 +5,6 @@ from pgu import gui
 from evdev import InputDevice, categorize, ecodes
 import time
 
-#from multiprocessing import Process
 import threading
 import tuner
 
@@ -191,7 +190,6 @@ class DrawGUI:
     def draw_tuneone(self):
         self.container.remove(self.tunescreencontainer)
         self.container.add(self.tuneonecontainer, 0, 0)
-
         self.container.reupdate()
 
     def tune_one(self, string_number):
@@ -206,7 +204,6 @@ class DrawGUI:
 
 
     def string_tuned(self, string_number):
-        print "hehhehehehhhhAJKSDHAKJSHDJK"
         self.tun.del_observer(self)
         self.tun.stop()
         print "String number %s tuned!" % string_number
@@ -218,4 +215,9 @@ if __name__ == "__main__":
     try:
         app.run(draw_gui.container)
     except KeyboardInterrupt:
+        print sys.exc_info()
         app.quit()
+        raise SystemExit
+    except:
+        print sys.exc_info()
+        raise SystemExit

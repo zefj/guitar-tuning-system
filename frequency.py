@@ -31,6 +31,8 @@ class Frequency(object):
         self.recorder.setformat(self.INFORMAT)
         self.recorder.setperiodsize(self.FRAMESIZE)
 
+        self.queue = []
+
     def parabolic(self, f, x):
         xv = 1/2. * (f[x-1] - f[x+1]) / (f[x-1] - 2 * f[x] + f[x+1]) + x
         yv = f[x] - 1/4. * (f[x-1] - f[x+1]) * (xv - x)
@@ -41,72 +43,78 @@ class Frequency(object):
         res, = np.nonzero(np.ravel(condition))
         return res
 
-    def append_to_queue(self, freq, queue, values_correct_flag, average_value):
+    def append_to_queue(self, freq):
         """
         Hacky implementation of limited length list.
         """
         #print "append_to_q"
-        if len(queue) > 9:
-            queue.pop(0)
-            queue.append(freq)
-            self.validate_values(queue, values_correct_flag, average_value)
+        if len(self.queue) > 9:
+            self.queue.pop(0)
+            self.queue.append(freq)
         else:
-            values_correct_flag.value = 0
-            queue.append(freq)
+            self.queue.append(freq)
 
-    def validate_values(self, queue, values_correct_flag, average_value):
+    def validate_values(self):
         """
         Value validation based on two criterion: standard deviation of last 10 values and maximum expected frequency. Sets a shared flag for tuning handler. 
         """
         #print "validate"
-        standard_deviation = np.std(queue)
+        standard_deviation = np.std(self.queue)
 
-        if standard_deviation < 3 and max(queue) < 600:
-            values_correct_flag.value = 1
-            self.calculate_average(queue, average_value)
+        if standard_deviation < 3 and max(self.queue) < 600:
+            return True
         else:
-            values_correct_flag.value = 0
+            return False
 
-    def calculate_average(self, queue, average_value):
-        average_value.value = sum(queue)/len(queue)
+    def calculate_average(self):
+        return (sum(self.queue)/len(self.queue))
 
-    def measure(self, queue, values_correct_flag, average_value, run_loop):
+    def measure(self):
 
-        while run_loop.value == 1:
-            try:
+        #while run_loop.value == 1:
+        try:
+            #start_time = time.clock()
+            #print "Start: %s" % start_time
 
+            [length, data] = self.recorder.read()
+            signal = np.fromstring(data, dtype=np.int16)
 
-                start_time = time.clock()
-                #print "Start: %s" % start_time
+            corr = fftconvolve(signal, signal[::-1], mode='full')
+            corr = corr[len(corr)/2:]
 
-                [length, data] = self.recorder.read()
-                signal = np.fromstring(data, dtype=np.int16)
+            # Find the first low point
+            d = np.diff(corr)
 
-                corr = fftconvolve(signal, signal[::-1], mode='full')
-                corr = corr[len(corr)/2:]
+        
+            start = self.find(d > 0)[0]
+            # Find the next peak after the low point (other than 0 lag).  This bit is
+            # not reliable for long signals, due to the desired peak occurring between
+            # samples, and other peaks appearing higher.
+            # Should use a weighting function to de-emphasize the peaks at longer lags.
+            peak = np.argmax(corr[start:]) + start
+            px, py = self.parabolic(corr, peak)
+            freq = self.RATE/px
 
-                # Find the first low point
-                d = np.diff(corr)
-
+            self.append_to_queue(freq)
             
-                start = self.find(d > 0)[0]
-                # Find the next peak after the low point (other than 0 lag).  This bit is
-                # not reliable for long signals, due to the desired peak occurring between
-                # samples, and other peaks appearing higher.
-                # Should use a weighting function to de-emphasize the peaks at longer lags.
-                peak = np.argmax(corr[start:]) + start
-                px, py = self.parabolic(corr, peak)
-                freq = self.RATE/px
-                self.append_to_queue(freq, queue, values_correct_flag, average_value)
-                #print freq
+            values_correct_flag = self.validate_values()
 
-                end_time = time.clock()
-                #print "End: %s" % end_time
-                #print "Eval: %s" % (end_time-start_time) 
+            average_value = self.calculate_average()
 
-            except (IndexError, ValueError):
-                pass
-                
+            return freq, values_correct_flag, average_value
+
+            #self.append_to_queue(freq, queue, values_correct_flag, average_value)
+            #print freq
+
+            #end_time = time.clock()
+            #print "End: %s" % end_time
+            #print "Eval: %s" % (end_time-start_time) 
+
+        except (IndexError, ValueError):
+            pass
+        
+        except:
+            self.recorder.close()
             # except (KeyboardInterrupt, SystemExit):
             #     #self.recorder.close()
             #     break
