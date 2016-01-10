@@ -90,6 +90,16 @@ class StringButton(gui.Button):
         #params['value'] = 'Tune one'
         gui.Button.__init__(self,**params)
 
+class StopButton(gui.Button):
+    def __init__(self,**params):
+        params['value'] = 'Stop / Back'
+        gui.Button.__init__(self,**params)        
+
+class StartButton(gui.Button):
+    def __init__(self,**params):
+        params['value'] = 'Start'
+        gui.Button.__init__(self,**params)   
+
 class DrawGUI:
     def __init__(self):
 
@@ -98,7 +108,13 @@ class DrawGUI:
         self.tunescreencontainer = gui.Container(width=480, height=320)
         self.optionscontainer = gui.Container(width=480, height=320)
         self.tuneonecontainer = gui.Container(width=480, height=320)
+        self.tuneallcontainer = gui.Container(width=480, height=320)
         self.set_background("/home/pi/Dyplom/guitar-tuning-system/bg.jpg")
+
+        self.tuning_containers = [self.tuneonecontainer, self.tuneallcontainer]
+
+        self.string_highlight_widget = None
+        self.pluck_notification_widget = None
 
         self.init_screens()
         
@@ -109,6 +125,8 @@ class DrawGUI:
         self.tune_screen_init()
         self.options_screen_init()        
         self.tune_one_screen_init()
+        self.tune_all_screen_init()
+        self.generic_widgets_init()
 
     def main_screen_init(self):
         self.options_button = Options(width=150, height=100)
@@ -139,15 +157,39 @@ class DrawGUI:
         offset_y = 0
         string_names = ['E', 'A', 'D', 'G', 'B', 'E']
 
-        self.quit_button = Quit(width=100, height=100)
-        self.quit_button.connect(gui.CLICK, app.quit, None)
-        self.tuneonecontainer.add(self.quit_button, 200, 200)
+        # self.quit_button = Quit(width=100, height=100)
+        # self.quit_button.connect(gui.CLICK, app.quit, None)
+        # self.tuneonecontainer.add(self.quit_button, 200, 200)
+
+        img = gui.Image("/home/pi/Dyplom/guitar-tuning-system/gryf.jpg")
+        self.tuneonecontainer.add(img, 88, 0)
+
+        self.stop_button = StopButton(width=100, height=100)
+        self.stop_button.connect(gui.CLICK, self.stop_tuning)
+        self.tuneonecontainer.add(self.stop_button, 360, 210)
 
         for i in range(0,6):
             self.string_buttons[i] = StringButton(width=50, height=42, value=string_names[i])
             self.tuneonecontainer.add(self.string_buttons[i], 10, 10+offset_y)
             self.string_buttons[i].connect(gui.CLICK, self.tune_one, i)
             offset_y += 52
+
+    def tune_all_screen_init(self):
+        img = gui.Image("/home/pi/Dyplom/guitar-tuning-system/gryf.jpg")
+        self.tuneallcontainer.add(img, 88, 0)        
+
+        self.stop_button = StopButton(width=100, height=100)
+        self.stop_button.connect(gui.CLICK, self.stop_tuning)
+        self.tuneallcontainer.add(self.stop_button, 360, 210)
+
+        self.start_button = StartButton(width=100, height=100)
+        self.start_button.connect(gui.CLICK, self.tune_all)
+        self.tuneallcontainer.add(self.start_button, 360, 100)        
+
+    def generic_widgets_init(self):
+        self.string_highlight_widget = gui.Color(width=155, height=10)
+        self.string_highlight_widget.value = (255, 0, 0)
+        self.pluck_notification_widget = gui.Button(width=100, height=50, value="Pluck the string", background=(253, 194, 14))
 
     def options_screen_init(self):
         self.back_button_opt = Back(width=50, height=50)
@@ -174,6 +216,16 @@ class DrawGUI:
 
         self.container.reupdate()
 
+    def draw_tuneall(self):
+        self.container.remove(self.tunescreencontainer)
+        self.container.add(self.tuneallcontainer, 0, 0)
+        self.container.reupdate()
+
+    def draw_tuneone(self):
+        self.container.remove(self.tunescreencontainer)
+        self.container.add(self.tuneonecontainer, 0, 0)
+        self.container.reupdate()
+
     def back(self, screen):
         if screen == 't':
             self.container.remove(self.tunescreencontainer)
@@ -181,38 +233,109 @@ class DrawGUI:
         elif screen == 'o':
             self.container.remove(self.optionscontainer)
             self.container.add(self.mainscreencontainer, 0, 0)
+        elif screen == 'toa':
+            try:
+                self.container.remove(self.tuneonecontainer)
+            except:
+                self.container.remove(self.tuneallcontainer)
+
+            self.container.add(self.mainscreencontainer, 0, 0)
 
         self.container.reupdate()
 
-    def draw_tuneall(self):
-        pass
+    ### Dynamic GUI widgets drawing methods
 
-    def draw_tuneone(self):
-        self.container.remove(self.tunescreencontainer)
-        self.container.add(self.tuneonecontainer, 0, 0)
+    def highlight_string_draw(self, string_number):
+
+        for container in self.tuning_containers:
+            container.add(self.string_highlight_widget, 88, 15+(string_number*58)-string_number)     
+
         self.container.reupdate()
+
+    def highlight_string_remove(self):
+
+        for container in self.tuning_containers:
+            container.remove(self.string_highlight_widget)
+        
+        self.container.reupdate()
+
+    def pluck_notification_draw(self):
+        try:
+            for container in self.tuning_containers:
+                container.add(self.pluck_notification_widget, 328, 10)
+                self.container.reupdate()
+        except:
+            pass
+
+    def pluck_notification_remove(self):
+        try:
+            for container in self.tuning_containers:
+                container.remove(self.pluck_notification_widget)
+                self.container.reupdate()
+        except:
+            pass
 
     def tune_one(self, string_number):
-        self.tuner_thread = threading.Thread(target=self.run_thread, args=(string_number,))
-        self.tuner_thread.daemon = True
-        self.tuner_thread.start()
+        if not hasattr(self, 'tuner_thread') and not hasattr(self, 'tun'):
+            # self.pluck_notification_draw()
+            # self.highlight_string_draw(string_number)
+            self.tuner_thread = threading.Thread(target=self.run_thread, args=(string_number,))
+            self.tuner_thread.daemon = True
+            self.tuner_thread.start()
+   
+    def tune_all(self):
+        if not hasattr(self, 'tuner_thread') and not hasattr(self, 'tun'):
+            # self.pluck_notification_draw()
+            # self.highlight_string_draw(string_number)
+            self.tuner_thread = threading.Thread(target=self.run_thread, args=())
+            self.tuner_thread.daemon = True
+            self.tuner_thread.start()
 
-    def run_thread(self, string_number):
+    def run_thread(self, *args):
         import tuner
-        #try:
         string_set = tuner.StringSet()
         self.tun = tuner.TuningHandler(string_set)
         self.tun.add_observer(self)
-        self.tun.start(string_number)
-        # except (KeyboardInterrupt, SystemExit):
-        #     self.tun.stop()
-        #     print '\n! Received keyboard interrupt, quitting threads.\n'
+        if args:
+            self.tun.start(args[0])
+        else:
+            self.tun.start()
 
-    def string_tuned(self, string_number):
-        self.tun.del_observer(self)
-        self.tun.stop()
-        del self.tuner_thread
+    def stop_tuning(self):
+        try:    
+            self.clear_notifications()
+            self.tun.del_observer(self)
+            self.tun.stop()
+            del self.tuner_thread, self.tun
+            print "Tuning stopped."        
+        except:
+            self.back('toa')
+            print "Nothing to stop."
+    
+    def clear_notifications(self):
+        try:
+            self.highlight_string_remove()
+            self.pluck_notification_remove()
+        except:
+            pass
+
+    ### Observer methods
+
+    def string_tuned(self, string_number, finished):
+        print finished
+
+        if finished == True:
+            self.stop_tuning()
+
+        self.clear_notifications()
+
         print "String number %s tuned!" % string_number
+
+    def highlight_string(self, string_number):
+        self.highlight_string_draw(string_number)
+
+    def pluck_string(self):
+        self.pluck_notification_draw()   
 
 if __name__ == "__main__":
 

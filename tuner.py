@@ -89,9 +89,12 @@ class TuningHandler(object):
         self.stopped = True
         self.frequency_detector = frequency.Frequency()
 
-        self.previous_duty = 7.5
-
         self.observers = []
+
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(18, GPIO.OUT)
+        self.servo = GPIO.PWM(18, 50)
+        self.servo.start(0)
 
         self.pid_controller=pid.PID(1.0, 0.1, 0.5)
 
@@ -100,9 +103,12 @@ class TuningHandler(object):
         self.frequency_detector.recorder.close()
         GPIO.cleanup()
 
-    def start(self, string_number):
+    def start(self, *args):
         self.stopped = False
-        self.tune_one(string_number)
+        if args:
+            self.tune_one(args[0])
+        else:
+            self.tune_all()
 
     def add_observer(self, observer):
         self.observers.append(observer)
@@ -110,60 +116,74 @@ class TuningHandler(object):
 
     def del_observer(self, observer):
         self.observers.remove(observer)
-        print "removed observer %s" % observer
+        print "removed observer %s" % observer 
 
-    def notify_string_tuned(self, string_number):
+    def notify_string_tuned(self, string_number, finished):
         for obs in self.observers:
-            obs.string_tuned(string_number)
+            obs.string_tuned(string_number, finished)
+
+    def notify_pluck_string(self):
+        for obs in self.observers:
+            obs.pluck_string()
+
+    def notify_highlight_string(self, string_number):
+        for obs in self.observers:
+            obs.highlight_string(string_number)
 
     def tune_all(self):
-        pass
+        """
+        I really hope this does not one day decide to scramble the dictionary. Too tired to properly do this.
+        """
+        target_frequencies = sorted(self.string_set.get_target_frequencies())
+        print target_frequencies
+        iterations = 1
+        
+        for key in target_frequencies:
+            if iterations == len(target_frequencies):
+                self.tune_one(key)
+            else:
+                self.tune_one(key, False)
 
-    def tune_one(self, string_number):
+            iterations += 1
 
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setup(18, GPIO.OUT)
-        self.servo = GPIO.PWM(18, 50)
-        self.servo.start(7.5)
+    def tune_one(self, string_number, finished_after=True):
 
         target_frequencies = self.string_set.get_target_frequencies()
         string_target_frequency = target_frequencies[string_number][1]
 
+        self.notify_highlight_string(string_number)
+
+        time.sleep(5)
+        self.notify_pluck_string()
+
         self.frequency_detector.queue = []
         self.pid_controller.setPoint(string_target_frequency)
         while self.stopped == False:
+            
+            freq, values_correct_flag = self.frequency_detector.measure()
 
-            current_freq, values_correct_flag, average_value = self.frequency_detector.measure()
-            #print current_freq, string_target_frequency, average_value
-            if values_correct_flag == True and current_freq != None:
-                
-                #print "w ifie"
-                freq = current_freq
+            if values_correct_flag == True and freq != None:
+                string_tuned = self.check_one_tuned(string_number, freq)
 
-                if average_value != None:
-                    string_tuned = self.check_one_tuned(string_number, freq)
+                if string_tuned == True:
 
-                    if string_tuned == True:
-                        self.notify_string_tuned(string_number)
-                        self._servo_update(7.5)  
-                        break
+                    self.notify_string_tuned(string_number, finished_after)
+
+                    self._servo_update(7.5)  
+                    break
        
-
                 pid_value = self.pid_controller.update(freq)
-                print pid_value
+
                 if round(pid_value, 1) > 0:
                     duty = round(self._map_values(pid_value, 1, 60, 7.1, 5), 1)
                 elif round(pid_value, 1) < 0:
                     duty = round(self._map_values(pid_value, -1, -60, 7.9, 9), 1)
                 else:
-                    #print 
                     duty = 7.5
                 
                 self._servo_update(duty)
-    
 
             else:
-                
                 self.pid_controller.setPoint(string_target_frequency)
                 self._servo_update(7.5)
 
@@ -183,8 +203,5 @@ class TuningHandler(object):
         return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
 
     def _servo_update(self, duty):
-        print "duty = %s" % duty
-       
+
         self.servo.ChangeDutyCycle(duty)
-
-

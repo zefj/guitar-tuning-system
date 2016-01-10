@@ -58,8 +58,6 @@ class Frequency(object):
         else:
             return False
 
-    def calculate_average(self):
-        return (sum(self.queue)/len(self.queue))
 
     def measure(self):
 
@@ -86,12 +84,11 @@ class Frequency(object):
             
             values_correct_flag = self.validate_values()
 
-            average_value = self.calculate_average()
 
-            return freq, values_correct_flag, average_value
+            return freq, values_correct_flag
 
         except (IndexError, ValueError):
-            return None, None, None
+            return None, None
         
         except:
             self.recorder.close()
