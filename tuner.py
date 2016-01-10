@@ -77,6 +77,11 @@ class StringSet(object):
             frequencies[obj.string_number] = (obj.sound, obj.target_frequency)
         return frequencies
 
+    def set_new_tuning(self, string_sound_dict):
+        self.string_objects = []
+        self.string_sound_dict = string_sound_dict
+        self._instantiate_strings()
+
     def default_tuning(self):
         default_tuning_dict = {0: 'D#', 1: 'G#', 2: 'C#', 3: 'F#', 4: 'A#', 5: 'D#'}
         return default_tuning_dict
@@ -131,11 +136,7 @@ class TuningHandler(object):
             obs.highlight_string(string_number)
 
     def tune_all(self):
-        """
-        I really hope this does not one day decide to scramble the dictionary. Too tired to properly do this.
-        """
         target_frequencies = sorted(self.string_set.get_target_frequencies())
-        print target_frequencies
         iterations = 1
         
         for key in target_frequencies:

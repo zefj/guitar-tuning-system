@@ -90,6 +90,11 @@ class StringButton(gui.Button):
         #params['value'] = 'Tune one'
         gui.Button.__init__(self,**params)
 
+class TuningButton(gui.Button):
+    # pass value!!!!11
+    def __init__(self,**params):
+        gui.Button.__init__(self,**params)        
+
 class StopButton(gui.Button):
     def __init__(self,**params):
         params['value'] = 'Stop / Back'
@@ -115,6 +120,8 @@ class DrawGUI:
 
         self.string_highlight_widget = None
         self.pluck_notification_widget = None
+
+        self.string_set = tuner.StringSet()
 
         self.init_screens()
         
@@ -157,10 +164,6 @@ class DrawGUI:
         offset_y = 0
         string_names = ['E', 'A', 'D', 'G', 'B', 'E']
 
-        # self.quit_button = Quit(width=100, height=100)
-        # self.quit_button.connect(gui.CLICK, app.quit, None)
-        # self.tuneonecontainer.add(self.quit_button, 200, 200)
-
         img = gui.Image("/home/pi/Dyplom/guitar-tuning-system/gryf.jpg")
         self.tuneonecontainer.add(img, 88, 0)
 
@@ -192,13 +195,44 @@ class DrawGUI:
         self.pluck_notification_widget = gui.Button(width=100, height=50, value="Pluck the string", background=(253, 194, 14))
 
     def options_screen_init(self):
-        self.back_button_opt = Back(width=50, height=50)
+        self.back_button_opt = Back(width=100, height=100)
         self.back_button_opt.connect(gui.CLICK, self.back, 'o')
+        self.optionscontainer.add(self.back_button_opt, 360, 210)
 
-        self.options_button = Options(width=150, height=100)
-        self.options_button.connect(gui.CLICK, self.draw_options)
+        self.tune_E_button = TuningButton(width=300, height=42, value='Standard E')
+        self.tune_E_button.connect(gui.CLICK, self.set_tuning, 'E')
+        self.optionscontainer.add(self.tune_E_button, 0, 60)
 
-        self.optionscontainer.add(self.back_button_opt, 30, 240)
+        self.tune_Ds_button = TuningButton(width=300, height=42, value='D#')
+        self.tune_Ds_button.connect(gui.CLICK, self.set_tuning, 'D#')
+        self.optionscontainer.add(self.tune_Ds_button, 0, 112)
+
+        self.tune_D_button = TuningButton(width=300, height=42, value='D')
+        self.tune_D_button.connect(gui.CLICK, self.set_tuning, 'D')
+        self.optionscontainer.add(self.tune_D_button, 0, 164)
+
+        self.tune_dropD_button = TuningButton(width=300, height=42, value='Drop D')
+        self.tune_dropD_button.connect(gui.CLICK, self.set_tuning, 'Drop D')
+        self.optionscontainer.add(self.tune_dropD_button, 0, 216)        
+
+        self.tune_dropC_button = TuningButton(width=300, height=42, value='Drop C')
+        self.tune_dropC_button.connect(gui.CLICK, self.set_tuning, 'Drop C')
+        self.optionscontainer.add(self.tune_dropC_button, 0, 268)
+
+        self.current_tuning_label = gui.Button(width = 100, height = 20, value="Your current tuning:", background=(255, 255, 255))
+        self.optionscontainer.add(self.current_tuning_label, 0, 0)
+
+        current_tuning = self.current_tuning_helper()
+
+        self.current_tuning_widget = gui.Button(height = 30, value=current_tuning, background=(255, 255, 255))
+        self.optionscontainer.add(self.current_tuning_widget, 0, 20)
+
+    def current_tuning_helper(self):
+        current_tuning = self.string_set.get_string_sounds()
+        parsed_current_tuning = {}
+        for key, value in current_tuning.iteritems():
+            parsed_current_tuning[key+1] = current_tuning[key] 
+        return str(parsed_current_tuning)[1:-1]
 
     def set_background(self, path):
         img = gui.Image(path)
@@ -207,13 +241,11 @@ class DrawGUI:
     def draw_options(self):
         self.container.remove(self.mainscreencontainer)
         self.container.add(self.optionscontainer, 0, 0)
-
         self.container.reupdate()
 
     def draw_tunescreen(self):
         self.container.remove(self.mainscreencontainer)
         self.container.add(self.tunescreencontainer, 0, 0)
-
         self.container.reupdate()
 
     def draw_tuneall(self):
@@ -224,6 +256,20 @@ class DrawGUI:
     def draw_tuneone(self):
         self.container.remove(self.tunescreencontainer)
         self.container.add(self.tuneonecontainer, 0, 0)
+        self.container.reupdate()
+
+    def set_tuning(self, tuning):
+        tunings_dict = {
+        'E': {0: 'E', 1: 'A', 2: 'D', 3: 'G', 4: 'B', 5: 'E'},
+        'D#': {0: 'D#', 1: 'G#', 2: 'C#', 3: 'F#', 4: 'A#', 5: 'D#'},
+        'D': {0: 'D', 1: 'G', 2: 'C', 3: 'F', 4: 'A', 5: 'D'},
+        'Drop D': {0: 'D', 1: 'A', 2: 'D', 3: 'G', 4: 'B', 5: 'E'},
+        'Drop C': {0: 'C', 1: 'G', 2: 'C', 3: 'F', 4: 'A', 5: 'D'}                           
+        }
+
+        self.string_set.set_new_tuning(tunings_dict[tuning])
+        current_tuning = self.current_tuning_helper()
+        self.current_tuning_widget.value = current_tuning
         self.container.reupdate()
 
     def back(self, screen):
@@ -292,9 +338,9 @@ class DrawGUI:
             self.tuner_thread.start()
 
     def run_thread(self, *args):
-        import tuner
-        string_set = tuner.StringSet()
-        self.tun = tuner.TuningHandler(string_set)
+         # apparently it works better if you do the import in the thread
+        
+        self.tun = tuner.TuningHandler(self.string_set)
         self.tun.add_observer(self)
         if args:
             self.tun.start(args[0])
@@ -322,8 +368,6 @@ class DrawGUI:
     ### Observer methods
 
     def string_tuned(self, string_number, finished):
-        print finished
-
         if finished == True:
             self.stop_tuning()
 
