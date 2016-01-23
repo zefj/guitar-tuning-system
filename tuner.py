@@ -4,10 +4,11 @@ import sys
 import frequency
 import pid
 import time
+import matplotlib
+matplotlib.use("Pdf")
+import matplotlib.pyplot as plt
 
-import threading
-
-
+import os
 
 class String(object):
     """
@@ -93,15 +94,17 @@ class TuningHandler(object):
         self.string_set = string_set
         self.stopped = True
         self.frequency_detector = frequency.Frequency()
-
+        self.last_readings = []
         self.observers = []
-
+        self.last_duty = 0
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(18, GPIO.OUT)
         self.servo = GPIO.PWM(18, 50)
         self.servo.start(0)
 
-        self.pid_controller=pid.PID(1.0, 0.1, 0.5)
+        # self.pid_controller=pid.PID(3, 0.25, 1.5)
+        #self.pid_controller=pid.PID(1.2, 0.25, 0.1)
+        self.pid_controller=pid.PID(10, 0.3, 0)
 
     def stop(self):
         self.stopped = True
@@ -159,44 +162,88 @@ class TuningHandler(object):
 
         self.frequency_detector.queue = []
         self.pid_controller.setPoint(string_target_frequency)
+
+        x_table = []
+        y_table = []
+        start_time = time.time()
+        
+        last_frequency = False
+
         while self.stopped == False:
-            
-            freq, values_correct_flag = self.frequency_detector.measure()
 
-            if values_correct_flag == True and freq != None:
-                string_tuned = self.check_one_tuned(string_number, freq)
+            freq = self.frequency_detector.measure()
+            values_correct = string_target_frequency*0.5 < freq < string_target_frequency*1.4 # zabezpieczenie przed dziwnymi wartosciami
 
-                if string_tuned == True:
-
-                    self.notify_string_tuned(string_number, finished_after)
-
-                    self._servo_update(7.5)  
-                    break
-       
-                pid_value = self.pid_controller.update(freq)
-
-                if round(pid_value, 1) > 0:
-                    duty = round(self._map_values(pid_value, 1, 60, 7.1, 5), 1)
-                elif round(pid_value, 1) < 0:
-                    duty = round(self._map_values(pid_value, -1, -60, 7.9, 9), 1)
-                else:
-                    duty = 7.5
+            if values_correct: 
                 
-                self._servo_update(duty)
+                if last_frequency and abs(last_frequency - freq) < 15:
+
+                    last_frequency = freq
+
+                    string_tuned = self.check_one_tuned(string_number, string_target_frequency, freq)
+
+                    measurement_time = time.time() - start_time
+                    x_table.append(measurement_time)
+                    y_table.append(freq)
+
+                    if string_tuned == True:
+
+                        self.notify_string_tuned(string_number, finished_after)
+
+                        self._servo_update(7.5)  
+                        print "TUNING TIME: %s" % (time.time() - start_time)
+                        #print "STD: %s" % (np.std(self.last_readings))
+                        offset = x_table[5]
+                        for ind, elem in enumerate(x_table):
+                            x_table[ind] = elem - offset
+
+                        plt.plot(x_table[5:], y_table[5:])
+                        plt.axhline(y=string_target_frequency)
+                        plot_name = 'wykres_'+str(string_number)+'.png'
+                        plt.savefig(os.path.join('/home/pi/Dyplom/', plot_name))                    
+                        plt.clf()
+
+                        break
+           
+                    pid_value = self.pid_controller.update(freq)
+
+                    if round(pid_value, 1) > 0:
+                        duty = round(self._map_values(pid_value, 0, 50, 7.5, 5.3), 1)
+                    elif round(pid_value, 1) < 0:
+                        duty = round(self._map_values(pid_value, 0, -50, 7.5, 8.9), 1)
+                    else:
+                        duty = 7.5                
+
+                    print string_target_frequency, freq, duty, pid_value
+
+                    self._servo_update(duty)
+
+                else:
+                    last_frequency = freq
 
             else:
-                self.pid_controller.setPoint(string_target_frequency)
+                #self.pid_controller.setPoint(string_target_frequency)
                 self._servo_update(7.5)
 
     def check_tuned(self):
         pass
 
-    def check_one_tuned(self, string_number, freq):
-        target_frequencies = self.string_set.get_target_frequencies()
-        string_target_frequency = target_frequencies[string_number][1]
+    def check_one_tuned(self, string_number, string_target_frequency, freq):
+        if len(self.last_readings) > 15:
+            self.last_readings.pop(0)
+            self.last_readings.append(freq)
+        else:
+            self.last_readings.append(freq)
 
-        if string_target_frequency - 0.1 <= freq <= string_target_frequency + 0.1:
-            return True
+        standard_deviation = np.std(self.last_readings)
+
+        last_avg = sum(self.last_readings)/len(self.last_readings)
+
+        if string_target_frequency - 0.1 <= last_avg <= string_target_frequency + 0.1 and standard_deviation < 0.3:
+            if string_target_frequency - 0.2 <= freq <= string_target_frequency + 0.2:
+                print "TUNED: %s, %s, %s" % (string_target_frequency, freq, last_avg)
+                print self.last_readings
+                return True
         else:
             return False
 
@@ -204,5 +251,7 @@ class TuningHandler(object):
         return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
 
     def _servo_update(self, duty):
-
-        self.servo.ChangeDutyCycle(duty)
+        if self.last_duty != duty:
+            self.servo.ChangeDutyCycle(duty)
+    
+        self.last_duty = duty

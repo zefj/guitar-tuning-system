@@ -17,6 +17,10 @@ class GUIApp(gui.Desktop):
         self.input_position = [None, None]
         self.connect(gui.QUIT,self.quit,None)
 
+    def init(self, widget=None, screen=None, area=None):
+        super(GUIApp, self).init(widget, screen, area)        
+        pygame.mouse.set_visible(False)
+        
     """Child class to override PGU application loop method, changes touchscreen input mechanism"""
     def handle_pos(self, code, value):
         if code == 0:
@@ -126,6 +130,7 @@ class DrawGUI:
         self.init_screens()
         
         self.container.add(self.mainscreencontainer, 0, 0)
+
 
     def init_screens(self):
         self.main_screen_init()
@@ -247,12 +252,12 @@ class DrawGUI:
         self.container.remove(self.mainscreencontainer)
         self.container.add(self.tunescreencontainer, 0, 0)
         self.container.reupdate()
-
+    
     def draw_tuneall(self):
         self.container.remove(self.tunescreencontainer)
         self.container.add(self.tuneallcontainer, 0, 0)
         self.container.reupdate()
-
+    
     def draw_tuneone(self):
         self.container.remove(self.tunescreencontainer)
         self.container.add(self.tuneonecontainer, 0, 0)
@@ -338,8 +343,6 @@ class DrawGUI:
             self.tuner_thread.start()
 
     def run_thread(self, *args):
-         # apparently it works better if you do the import in the thread
-        
         self.tun = tuner.TuningHandler(self.string_set)
         self.tun.add_observer(self)
         if args:
@@ -385,8 +388,11 @@ if __name__ == "__main__":
 
     app = GUIApp()
     draw_gui = DrawGUI()
+
     try:
-        app.run(draw_gui.container)
+        app.run(draw_gui.container)  
+
+
     except KeyboardInterrupt:
         print sys.exc_info()
         app.quit()
