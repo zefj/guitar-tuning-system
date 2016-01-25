@@ -30,6 +30,8 @@ class PID:
 		self.integral_thresh = 3
 		self.min_output = -50
 		self.max_output = 50
+		
+		#self.deadband = 0.3
 
 		self.set_point=0.0
 		self.error=0.0
@@ -40,6 +42,9 @@ class PID:
 		"""
 
 		self.error = self.set_point - current_value
+
+		#if abs(self.error) < self.deadband: ## przetestowac czy to dziala
+		#	return 0
 
 		self.P_value = self.Kp * self.error
 
@@ -67,10 +72,10 @@ class PID:
 
 		self.I_value = self.Integrator * self.Ki
 		
-		print "error: %s" % self.error
-		print "P: %s" % self.P_value		
-		print "I: %s" % self.I_value		
-		print "D: %s" % self.D_value
+		# print "error: %s" % self.error
+		# print "P: %s" % self.P_value		
+		# print "I: %s" % self.I_value		
+		# print "D: %s" % self.D_value
 
 		PID = self.P_value + self.I_value + self.D_value
 

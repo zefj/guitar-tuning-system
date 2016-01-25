@@ -104,7 +104,7 @@ class TuningHandler(object):
 
         # self.pid_controller=pid.PID(3, 0.25, 1.5)
         #self.pid_controller=pid.PID(1.2, 0.25, 0.1)
-        self.pid_controller=pid.PID(10, 0.3, 0)
+        self.pid_controller=pid.PID(8, 0.25, 0)
 
     def stop(self):
         self.stopped = True
@@ -168,11 +168,22 @@ class TuningHandler(object):
         start_time = time.time()
         
         last_frequency = False
+        last_values = []
 
         while self.stopped == False:
+            
+            #!#!#! SPRAWDZIC JESZCZE RAZ TEN PATENT Z FREQUENCY CO ON BYL WCZESNIEJ, Z ODCH STD
 
             freq = self.frequency_detector.measure()
-            values_correct = string_target_frequency*0.5 < freq < string_target_frequency*1.4 # zabezpieczenie przed dziwnymi wartosciami
+            #values_correct = string_target_frequency*0.5 < freq < string_target_frequency*1.4 # zabezpieczenie przed dziwnymi wartosciami
+
+            if len(last_values) > 7:        
+                last_values.pop(0)     
+                last_values.append(freq)       
+            else:     
+                last_values.append(freq)            
+
+            values_correct = np.std(last_values) < 15 and max(last_values) < 400
 
             if values_correct: 
                 
@@ -219,9 +230,11 @@ class TuningHandler(object):
                     self._servo_update(duty)
 
                 else:
+                    print "NOT TUNING: %s, %s" % (last_frequency, freq)
                     last_frequency = freq
 
             else:
+                print "NOT TUNING VALUES NOT CORRENT: %s" % freq
                 #self.pid_controller.setPoint(string_target_frequency)
                 self._servo_update(7.5)
 
@@ -229,22 +242,41 @@ class TuningHandler(object):
         pass
 
     def check_one_tuned(self, string_number, string_target_frequency, freq):
-        if len(self.last_readings) > 15:
+        # if len(self.last_readings) > 15:
+        #     self.last_readings.pop(0)
+        #     self.last_readings.append(freq)
+        # else:
+        #     self.last_readings.append(freq)
+
+        # standard_deviation = np.std(self.last_readings)
+
+        # last_avg = sum(self.last_readings)/len(self.last_readings)
+
+        # if string_target_frequency - 0.1 <= last_avg <= string_target_frequency + 0.1 and standard_deviation < 0.3:
+        #     if string_target_frequency - 0.2 <= freq <= string_target_frequency + 0.2:
+        #         print "TUNED: %s, %s, %s" % (string_target_frequency, freq, last_avg)
+        #         print self.last_readings
+        #         return True
+        # else:
+        #     return False
+
+        if len(self.last_readings) > 7:
             self.last_readings.pop(0)
             self.last_readings.append(freq)
+
+            standard_deviation = np.std(self.last_readings)
+
+            last_avg = sum(self.last_readings)/len(self.last_readings)
+
+            if string_target_frequency - 0.4 <= last_avg <= string_target_frequency + 0.4 and standard_deviation < 0.2:
+                if string_target_frequency - 0.3 <= freq <= string_target_frequency + 0.3:
+                    print "TUNED: %s, %s, %s, %s" % (string_target_frequency, freq, last_avg, standard_deviation)
+                    print self.last_readings
+                    return True
+            else:
+                return False
         else:
             self.last_readings.append(freq)
-
-        standard_deviation = np.std(self.last_readings)
-
-        last_avg = sum(self.last_readings)/len(self.last_readings)
-
-        if string_target_frequency - 0.1 <= last_avg <= string_target_frequency + 0.1 and standard_deviation < 0.3:
-            if string_target_frequency - 0.2 <= freq <= string_target_frequency + 0.2:
-                print "TUNED: %s, %s, %s" % (string_target_frequency, freq, last_avg)
-                print self.last_readings
-                return True
-        else:
             return False
 
     def _map_values(self, x, in_min, in_max, out_min, out_max):

@@ -56,10 +56,10 @@ class Frequency(object):
             px, py = self.parabolic(corr, peak)
             freq = self.RATE/px
 
-            return freq
+            return round(freq, 4)
 
         except (IndexError, ValueError):
-            return None, None
+            return None
         
         except:
             self.recorder.close()
