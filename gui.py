@@ -3,6 +3,7 @@ import pygame, sys, os
 from pygame.locals import *
 from pgu import gui
 from evdev import InputDevice, categorize, ecodes
+import time
 
 os.environ["SDL_FBDEV"] = "/dev/fb1"
 dev = InputDevice('/dev/input/event1')
@@ -42,9 +43,9 @@ class GUIApp(gui.Desktop):
         rects = self.update(self.screen)
         pygame.display.update(rects)
 
-class Quit(gui.Button):
+class Tune(gui.Button):
     def __init__(self,**params):
-        params['value'] = 'Quit'
+        params['value'] = 'Tune'
         gui.Button.__init__(self,**params)
 
 class Options(gui.Button):
@@ -52,55 +53,118 @@ class Options(gui.Button):
         params['value'] = 'Options'
         gui.Button.__init__(self,**params)
 
+class Quit(gui.Button):
+    def __init__(self,**params):
+        params['value'] = 'Quit'
+        gui.Button.__init__(self,**params)
+
 class Back(gui.Button):
     def __init__(self,**params):
         params['value'] = 'Back'
         gui.Button.__init__(self,**params)
 
+### Tune screen button ###
+
+class TuneOne(gui.Button):
+    def __init__(self,**params):
+        params['value'] = 'Tune one'
+        gui.Button.__init__(self,**params)
+
+class TuneAll(gui.Button):
+    def __init__(self,**params):
+        params['value'] = 'Tune all'
+        gui.Button.__init__(self,**params)
+
+class StringButton(gui.Button):
+    # pass value!!!!11
+    def __init__(self,**params):
+        #params['value'] = 'Tune one'
+        gui.Button.__init__(self,**params)
+
 class DrawGUI:
     def __init__(self):
         self.container = gui.Container(width=480, height=320)
+        self.mainscreencontainer = gui.Container(width=480, height=320)
+        self.tunescreencontainer = gui.Container(width=480, height=320)
+        self.optionscontainer = gui.Container(width=480, height=320)
         self.set_background("/home/pi/Dyplom/guitar-tuning-system/bg.jpg")
         self.initialise_buttons()
-        self.draw_mainscreen()
+
 
     def set_background(self, path):
         img = gui.Image(path)
         self.container.add(img, 0, 0)
+        self.mainscreencontainer.add(img, 0, 0)
+        #self.tunescreencontainer.add(img, 0, 0)
+        self.optionscontainer.add(img, 0, 0)
 
     def initialise_buttons(self):
         """
-        Initialise and connect all the buttons here.
+        Initialise and connect all generic buttons here.
         """
         self.quit_button = Quit(width=100, height=100)
         self.quit_button.connect(gui.CLICK, app.quit, None)
 
-        self.options_button = Options(width=100, height=100)
+        self.options_button = Options(width=150, height=100)
         self.options_button.connect(gui.CLICK, self.draw_options)
 
         self.back_button = Back(width=50, height=50)
-        self.back_button.connect(gui.CLICK, self.draw_mainscreen)
-   
-    def draw_mainscreen(self):
-        """
-        Everything related to drawing the main screen.
-        """
-        try:
-            self.container.remove(self.back_button)
-        except:
-            pass
+        self.back_button.connect(gui.CLICK, self.back, 'tune')
 
-        self.container.add(self.quit_button, 20, 20)        
-        self.container.add(self.options_button, 120, 120)   
+        self.back_button_opt = Back(width=50, height=50)
+        self.back_button_opt.connect(gui.CLICK, self.back, 'opt')
+
+        self.tune_button = Tune(width=150, height=100)
+        self.tune_button.connect(gui.CLICK, self.draw_tunescreen)
+
+        self.tune_one_button = TuneOne(width=150, height=100)
+        self.tune_one_button.connect(gui.CLICK, self.draw_tuneone)
+
+        self.tune_all_button = TuneAll(width=150, height=100)
+        self.tune_all_button.connect(gui.CLICK, self.draw_tuneall)     
+
+        self.mainscreencontainer.add(self.tune_button, 70, 110)        
+        self.mainscreencontainer.add(self.options_button, 250, 110)   
+
+        self.tunescreencontainer.add(self.tune_one_button, 70, 110)
+        self.tunescreencontainer.add(self.tune_all_button, 250, 110)
+        self.tunescreencontainer.add(self.back_button, 30, 240)
+
+        self.optionscontainer.add(self.back_button_opt, 30, 240)
+
+        self.container.add(self.mainscreencontainer, 0, 0)
 
     def draw_options(self):
-        """
-        Everything related to drawing the options screen.
-        """
-        self.container.remove(self.quit_button)
-        self.container.remove(self.options_button)
+        self.container.remove(self.mainscreencontainer)
+        self.container.add(self.optionscontainer, 0, 0)
+        time.sleep(1)
+        self.container.reupdate()
 
-        self.container.add(self.back_button, 250, 250)
+    def back(self, screen):
+        print "in back"
+        if screen == 'tune':
+            print 'tune'
+            self.container.remove(self.tunescreencontainer)
+            self.container.add(self.mainscreencontainer, 0, 0)
+        elif screen == 'opt':
+            print 'opt'
+            self.container.remove(self.optionscontainer)
+            self.container.add(self.mainscreencontainer, 0, 0)
+
+        time.sleep(1)
+        self.container.reupdate()
+
+    def draw_tunescreen(self):
+        self.container.remove(self.mainscreencontainer)
+        self.container.add(self.tunescreencontainer, 0, 0)
+        time.sleep(1)
+        self.container.reupdate()
+
+    def draw_tuneall(self):
+        pass
+
+    def draw_tuneone(self):
+        pass
 
 if __name__ == "__main__":
 
