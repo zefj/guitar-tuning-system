@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import numpy as np
 import RPi.GPIO as GPIO
 import sys
@@ -104,7 +105,7 @@ class TuningHandler(object):
 
         # self.pid_controller=pid.PID(3, 0.25, 1.5)
         #self.pid_controller=pid.PID(1.2, 0.25, 0.1)
-        self.pid_controller=pid.PID(8, 0.25, 0)
+        self.pid_controller=pid.PID(8, 0.35, 2.5)
 
     def stop(self):
         self.stopped = True
@@ -154,6 +155,7 @@ class TuningHandler(object):
 
         target_frequencies = self.string_set.get_target_frequencies()
         string_target_frequency = target_frequencies[string_number][1]
+        sound_name = target_frequencies[string_number][0]
 
         self.notify_highlight_string(string_number)
 
@@ -183,19 +185,19 @@ class TuningHandler(object):
             else:     
                 last_values.append(freq)            
 
-            values_correct = np.std(last_values) < 15 and max(last_values) < 400
+            values_correct = np.std(last_values) < 15 and max(last_values) < 400 and string_target_frequency*0.5 < freq < string_target_frequency*1.4
 
             if values_correct: 
                 
-                if last_frequency and abs(last_frequency - freq) < 15:
+                if last_frequency and abs(last_frequency - freq) < 8:
+
+                    if abs(last_frequency - freq) < 4:
+                        measurement_time = time.time() - start_time
+                        x_table.append(measurement_time)
+                        y_table.append(round(freq,4))      
 
                     last_frequency = freq
-
                     string_tuned = self.check_one_tuned(string_number, string_target_frequency, freq)
-
-                    measurement_time = time.time() - start_time
-                    x_table.append(measurement_time)
-                    y_table.append(freq)
 
                     if string_tuned == True:
 
@@ -203,16 +205,9 @@ class TuningHandler(object):
 
                         self._servo_update(7.5)  
                         print "TUNING TIME: %s" % (time.time() - start_time)
-                        #print "STD: %s" % (np.std(self.last_readings))
-                        offset = x_table[5]
-                        for ind, elem in enumerate(x_table):
-                            x_table[ind] = elem - offset
 
-                        plt.plot(x_table[5:], y_table[5:])
-                        plt.axhline(y=string_target_frequency)
-                        plot_name = 'wykres_'+str(string_number)+'.png'
-                        plt.savefig(os.path.join('/home/pi/Dyplom/', plot_name))                    
-                        plt.clf()
+                        self.draw_plot(x_table, y_table, string_number, sound_name, string_target_frequency)
+
 
                         break
            
@@ -234,12 +229,37 @@ class TuningHandler(object):
                     last_frequency = freq
 
             else:
+                self.last_readings = []
                 print "NOT TUNING VALUES NOT CORRENT: %s" % freq
                 #self.pid_controller.setPoint(string_target_frequency)
                 self._servo_update(7.5)
 
-    def check_tuned(self):
-        pass
+    def draw_plot(self, x_table, y_table, string_number, sound_name, string_target_frequency):
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+
+        ax.set_xlabel('t [s]')
+        ax.set_ylabel('f [Hz]')
+        ax.set_title('Struna '+str((string_number+1))+' do dzwieku '+sound_name)
+
+        plt.plot(x_table, y_table)
+        ax.set_xlim(0)
+        plt.axhline(y=string_target_frequency)
+        plt.axhspan(string_target_frequency-0.7, string_target_frequency+0.7, xmin=0, facecolor='g', alpha=0.5)
+
+        data = ('f0 = '+str(round(y_table[0],2))+' Hz\n'+
+                'fk = '+str(round(y_table[len(y_table)-1],2))+' Hz\n'+
+                'fz = '+str(round(string_target_frequency,2))+' Hz\n'+
+                't = '+str(round(x_table[len(x_table)-1]-x_table[0],2))+' s')
+        print data
+        ax.text(0.8, 0.01, data,
+                verticalalignment='bottom', horizontalalignment='left',
+                transform=ax.transAxes,
+                fontsize=11)
+
+        plot_name = 'wykres_'+str(string_number)+'.png'
+        plt.savefig(os.path.join('/home/pi/Dyplom/', plot_name))                    
+        plt.clf()       
 
     def check_one_tuned(self, string_number, string_target_frequency, freq):
         # if len(self.last_readings) > 15:
@@ -268,7 +288,9 @@ class TuningHandler(object):
 
             last_avg = sum(self.last_readings)/len(self.last_readings)
 
-            if string_target_frequency - 0.4 <= last_avg <= string_target_frequency + 0.4 and standard_deviation < 0.2:
+            if all([abs(item - string_target_frequency) < 0.7 for item in self.last_readings]):
+
+            #if string_target_frequency - 0.4 <= last_avg <= string_target_frequency + 0.4 and standard_deviation < 0.2:
                 if string_target_frequency - 0.3 <= freq <= string_target_frequency + 0.3:
                     print "TUNED: %s, %s, %s, %s" % (string_target_frequency, freq, last_avg, standard_deviation)
                     print self.last_readings

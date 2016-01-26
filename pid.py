@@ -27,7 +27,7 @@ class PID:
 		self.Integrator=Integrator
 		self.Integrator_max=Integrator_max
 		self.Integrator_min=Integrator_min
-		self.integral_thresh = 3
+		self.integral_thresh = 6
 		self.min_output = -50
 		self.max_output = 50
 		
@@ -56,12 +56,12 @@ class PID:
 		#self.Derivator = current_value
 		
 		if abs(self.error) < self.integral_thresh:
-			# if self.Integrator > 0 and self.Integrator + self.error < self.Integrator:
-			# 	self.Integrator = 0	
-			# elif self.Integrator < 0 and self.Integrator + self.error > self.Integrator:
-			# 	self.Integrator = 0
-			# else:	
-			self.Integrator = self.Integrator + self.error
+			if self.Integrator > 0 and self.Integrator + self.error < self.Integrator:
+				self.Integrator = 0	
+			elif self.Integrator < 0 and self.Integrator + self.error > self.Integrator:
+				self.Integrator = 0
+			else:	
+				self.Integrator = self.Integrator + self.error
 		else:
 			self.Integrator = 0
 

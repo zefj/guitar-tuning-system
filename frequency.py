@@ -15,7 +15,7 @@ class Frequency(object):
         self.CHANNELS    = 1
         self.INFORMAT    = alsaaudio.PCM_FORMAT_S16_LE
         self.RATE        = 44100
-        self.PERIODSIZE   = 2048
+        self.PERIODSIZE  = 2500
         self.CARD = 1
 
         # set up audio input
@@ -59,7 +59,7 @@ class Frequency(object):
             return round(freq, 4)
 
         except (IndexError, ValueError):
-            return None
+            return 0
         
         except:
             self.recorder.close()
