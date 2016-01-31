@@ -1,9 +1,10 @@
 analyse==1.0.0
 evdev==0.5.0
 numpy==1.10.2
+scipy==0.16.1
 pyalsaaudio==0.8.2
 RPi.GPIO==0.6.1
 scipy==0.16.1
 wheel==0.24.0
 pygame==1.9.2a0
-
+pgu==0.18
