@@ -14,8 +14,6 @@ import os
 class String(object):
     """
     String class. Object representation of a single string. Calculates target frequency based on string number and sound name input.
-
-    (Will the naming collide with python string module?)
     """
     def __init__(self, string_number, sound):
         super(String, self).__init__()
@@ -47,7 +45,7 @@ class String(object):
 
 class StringSet(object):
     """
-    StringSet builds string objects from user input (maps dictionary from GUI to objects). Provides several helper methods, I don't really know what for yet. 
+    StringSet builds string objects from user input (maps dictionary from GUI to objects). Provides several helper methods.
     """
     def __init__(self, string_sound_dict=None):
         super(StringSet, self).__init__()
@@ -65,9 +63,6 @@ class StringSet(object):
             self.string_objects.append(String(key, value))
 
     def get_string_objects(self):
-        """
-        Just for clarity.
-        """
         return self.string_objects
 
     def get_string_sounds(self):
@@ -89,7 +84,6 @@ class StringSet(object):
         return default_tuning_dict
 
 class TuningHandler(object):
-    """docstring for TuningHandler"""
     def __init__(self, string_set):
         super(TuningHandler, self).__init__()
         self.string_set = string_set
@@ -103,8 +97,6 @@ class TuningHandler(object):
         self.servo = GPIO.PWM(18, 50)
         self.servo.start(0)
 
-        # self.pid_controller=pid.PID(3, 0.25, 1.5)
-        #self.pid_controller=pid.PID(1.2, 0.25, 0.1)
         self.pid_controller=pid.PID(8, 0.35, 2.5)
 
     def stop(self):
@@ -174,10 +166,7 @@ class TuningHandler(object):
 
         while self.stopped == False:
             
-            #!#!#! SPRAWDZIC JESZCZE RAZ TEN PATENT Z FREQUENCY CO ON BYL WCZESNIEJ, Z ODCH STD
-
             freq = self.frequency_detector.measure()
-            #values_correct = string_target_frequency*0.5 < freq < string_target_frequency*1.4 # zabezpieczenie przed dziwnymi wartosciami
 
             if len(last_values) > 7:        
                 last_values.pop(0)     
@@ -208,7 +197,6 @@ class TuningHandler(object):
 
                         self.draw_plot(x_table, y_table, string_number, sound_name, string_target_frequency)
 
-
                         break
            
                     pid_value = self.pid_controller.update(freq)
@@ -231,10 +219,10 @@ class TuningHandler(object):
             else:
                 self.last_readings = []
                 print "NOT TUNING VALUES NOT CORRENT: %s" % freq
-                #self.pid_controller.setPoint(string_target_frequency)
                 self._servo_update(7.5)
 
     def draw_plot(self, x_table, y_table, string_number, sound_name, string_target_frequency):
+      
         fig = plt.figure()
         ax = fig.add_subplot(111)
 
@@ -262,23 +250,6 @@ class TuningHandler(object):
         plt.clf()       
 
     def check_one_tuned(self, string_number, string_target_frequency, freq):
-        # if len(self.last_readings) > 15:
-        #     self.last_readings.pop(0)
-        #     self.last_readings.append(freq)
-        # else:
-        #     self.last_readings.append(freq)
-
-        # standard_deviation = np.std(self.last_readings)
-
-        # last_avg = sum(self.last_readings)/len(self.last_readings)
-
-        # if string_target_frequency - 0.1 <= last_avg <= string_target_frequency + 0.1 and standard_deviation < 0.3:
-        #     if string_target_frequency - 0.2 <= freq <= string_target_frequency + 0.2:
-        #         print "TUNED: %s, %s, %s" % (string_target_frequency, freq, last_avg)
-        #         print self.last_readings
-        #         return True
-        # else:
-        #     return False
 
         if len(self.last_readings) > 7:
             self.last_readings.pop(0)
@@ -290,7 +261,6 @@ class TuningHandler(object):
 
             if all([abs(item - string_target_frequency) < 0.7 for item in self.last_readings]):
 
-            #if string_target_frequency - 0.4 <= last_avg <= string_target_frequency + 0.4 and standard_deviation < 0.2:
                 if string_target_frequency - 0.3 <= freq <= string_target_frequency + 0.3:
                     print "TUNED: %s, %s, %s, %s" % (string_target_frequency, freq, last_avg, standard_deviation)
                     print self.last_readings

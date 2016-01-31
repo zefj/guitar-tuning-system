@@ -31,7 +31,6 @@ class Frequency(object):
         return (xv, yv)
 
     def find(self, condition):
-        "Return the indices where ravel(condition) is true"
         res, = np.nonzero(np.ravel(condition))
         return res
 
@@ -44,14 +43,10 @@ class Frequency(object):
             corr = fftconvolve(signal, signal[::-1], mode='full')
             corr = corr[len(corr)/2:]
 
-            # Find the first low point
             d = np.diff(corr)
 
             start = self.find(d > 0)[0]
-            # Find the next peak after the low point (other than 0 lag).  This bit is
-            # not reliable for long signals, due to the desired peak occurring between
-            # samples, and other peaks appearing higher.
-            # Should use a weighting function to de-emphasize the peaks at longer lags.
+
             peak = np.argmax(corr[start:]) + start
             px, py = self.parabolic(corr, peak)
             freq = self.RATE/px
